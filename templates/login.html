@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Gastos"/>
+<link rel="apple-touch-icon" href="/static/icon-192.png"/>
+<meta name="theme-color" content="#1d4ed8"/>
+<title>💰 Gastos App</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    background:#0b0f1a;
+    font-family:'DM Sans',sans-serif;
+    color:#e8edf5;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+  }
+  .card{
+    background:#111827;
+    border-radius:20px;
+    padding:40px 36px;
+    width:100%;
+    max-width:360px;
+    border:1px solid #1e2d45;
+    box-shadow:0 24px 64px rgba(0,0,0,.6);
+  }
+  .logo{text-align:center;margin-bottom:32px;}
+  .logo .icon{font-size:48px;margin-bottom:10px;}
+  .logo h1{
+    font-size:20px;font-weight:700;
+    background:linear-gradient(135deg,#1d4ed8,#7c3aed);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  }
+  .logo p{font-size:12px;color:#64748b;margin-top:4px;}
+  label{display:block;font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+  input[type=password]{
+    width:100%;padding:13px 16px;
+    border-radius:11px;border:1px solid #1e2d45;
+    background:#1a2235;color:#e8edf5;
+    font-family:inherit;font-size:15px;
+    letter-spacing:3px;
+    transition:border .15s;
+    -webkit-appearance:none;
+  }
+  input[type=password]:focus{outline:none;border-color:#3b82f6;}
+  .btn{
+    width:100%;padding:14px;margin-top:20px;
+    border-radius:11px;border:none;cursor:pointer;
+    font-family:inherit;font-size:15px;font-weight:700;
+    background:linear-gradient(135deg,#1d4ed8,#7c3aed);
+    color:white;transition:opacity .15s;
+    -webkit-appearance:none;
+  }
+  .btn:hover{opacity:.88;}
+  .btn:active{opacity:.75;transform:scale(.98);}
+  .error{
+    background:#7f1d1d;border:1px solid #ef444440;
+    color:#fca5a5;border-radius:9px;
+    padding:11px 14px;font-size:13px;
+    margin-bottom:16px;text-align:center;
+  }
+  .footer{text-align:center;margin-top:24px;font-size:11px;color:#334155;}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <div class="icon">💰</div>
+    <h1>Gastos App</h1>
+    <p>Vinicius Nascimento</p>
+  </div>
+
+  {% if error %}
+  <div class="error">🔒 {{ error }}</div>
+  {% endif %}
+
+  <form method="POST" action="/login">
+    <label>Senha de acesso</label>
+    <input type="password" name="password" placeholder="••••••••"
+           autofocus autocomplete="current-password"/>
+    <button type="submit" class="btn">Entrar →</button>
+  </form>
+
+  <div class="footer">Acesso privado · somente você</div>
+</div>
+</body>
+</html>
