@@ -262,18 +262,25 @@ def init_db():
 class PgConn:
     """Thin wrapper around psycopg2 that mimics sqlite3 interface."""
     def __init__(self, dsn):
-        # Parse URL manually to handle special chars (@, !, etc.) in password
-        from urllib.parse import urlparse, unquote
-        r = urlparse(dsn)
-        self._con = psycopg2.connect(
-            host=r.hostname,
-            port=r.port or 5432,
-            dbname=(r.path or "/postgres").lstrip("/"),
-            user=unquote(r.username or ""),
-            password=unquote(r.password or ""),
-            sslmode="require",
-            connect_timeout=10,
+        # Parse URL with regex so @ inside the password doesn't break parsing.
+        # Greedy match on password ensures we split at the LAST @ before host.
+        import re
+        from urllib.parse import unquote
+        m = re.match(
+            r'[^:]+://([^:]+):(.+)@([^:@/]+):(\d+)/([^?]+)', dsn
         )
+        if m:
+            user, password, host, port, dbname = m.groups()
+            self._con = psycopg2.connect(
+                host=host, port=int(port),
+                dbname=dbname,
+                user=unquote(user),
+                password=unquote(password),
+                sslmode="require",
+                connect_timeout=10,
+            )
+        else:
+            self._con = psycopg2.connect(dsn)
         self._con.autocommit = False
 
     def execute(self, sql, params=()):
