@@ -905,6 +905,42 @@ nav{flex:1;padding:8px 6px;overflow-y:auto;}
   </div>
 </div>
 
+<!-- Card PDF Import Modal -->
+<div class="modal-overlay" id="card-pdf-modal" style="display:none" onclick="closeModal('card-pdf-modal',event)">
+  <div class="modal" onclick="event.stopPropagation()" style="max-width:600px">
+    <div class="modal-header">
+      <div class="modal-title">📄 Importar Extrato PDF — <span id="card-pdf-modal-name" style="font-weight:400;font-size:13px"></span></div>
+      <button class="modal-close" onclick="closeModal('card-pdf-modal')">×</button>
+    </div>
+    <div id="card-pdf-drop-area">
+      <div class="drop-zone" onclick="document.getElementById('card-pdf-input').click()"
+           ondragover="dragOver2(event)" ondragleave="dragLeave2()" ondrop="dropCardFile(event)"
+           style="margin-bottom:0">
+        <div style="font-size:32px;margin-bottom:8px">📄</div>
+        <div style="font-size:13px;color:var(--muted2)">Clique ou arraste o PDF do extrato</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Apenas .pdf</div>
+      </div>
+      <input type="file" id="card-pdf-input" accept=".pdf" style="display:none" onchange="handleCardPdfFile(this.files[0])"/>
+    </div>
+    <div id="card-pdf-preview" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+        <div style="font-size:13px;font-weight:600">👁️ Preview — <span id="card-pdf-count">0</span> transações</div>
+        <div style="display:flex;gap:8px">
+          <span class="badge" style="background:#7f1d1d;color:#fca5a5" id="card-pdf-sai">0 saídas</span>
+        </div>
+      </div>
+      <div style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;margin-bottom:12px">
+        <table class="tbl"><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th></tr></thead>
+        <tbody id="card-pdf-body"></tbody></table>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="confirmCardImport()" style="flex:1">✅ Confirmar Importação</button>
+        <button class="btn btn-ghost" onclick="cancelCardImport()">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -1500,18 +1536,38 @@ function renderCards(){
   const extraCards=Object.keys(cardItems).filter(k=>!allCards.includes(k));
   const displayCards=[...allCards,...extraCards];
 
-  if(displayCards.every(c=>!cardItems[c]||cardItems[c].length===0)){
-    div.innerHTML=`<div style="text-align:center;padding:32px;color:var(--muted);font-size:13px">
-      Nenhum item de cartão registrado.<br>Clique em "➕ Adicionar item" para começar.
-    </div>`;
-    return;
-  }
-
   displayCards.forEach(cardName=>{
     const items=cardItems[cardName]??[];
     const total=items.reduce((s,i)=>s+i.amount,0);
     const colors={"Cartão Caixa – PF":"#ec4899","Cartão Caixa – PJ":"#8b5cf6","Cartão Caixa – Inter":"#0ea5e9"};
     const col=colors[cardName]??"#94a3b8";
+    const safeId=cardName.replace(/\s/g,"_");
+
+    // Per-card category dashboard
+    const byCat={};
+    items.forEach(i=>{byCat[i.category]=(byCat[i.category]||0)+i.amount;});
+    const catRows=Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([cat,amt])=>{
+      const pct=total>0?Math.round(amt/total*100):0;
+      const barW=Math.min(pct,100);
+      return `<div style="margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">
+          <span style="color:var(--muted2)">${cat}</span>
+          <span style="font-family:'DM Mono',monospace;color:${col}">${fmt(amt)} <span style="color:var(--muted);font-size:10px">${pct}%</span></span>
+        </div>
+        <div style="height:3px;background:var(--border2);border-radius:2px">
+          <div style="height:3px;width:${barW}%;background:${col};border-radius:2px;opacity:.7"></div>
+        </div>
+      </div>`;
+    }).join("");
+    const dashboard=items.length>0?`
+      <div style="border-top:1px solid ${col}20;margin-top:12px;padding-top:10px">
+        <div style="font-size:10px;font-weight:600;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Dashboard por Categoria</div>
+        ${catRows}
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:12px">
+          <span style="color:var(--muted)">${items.length} lançamento${items.length!==1?"s":""}</span>
+          <span style="font-weight:700;color:${col};font-family:'DM Mono',monospace">Total: ${fmt(total)}</span>
+        </div>
+      </div>`:"";
 
     div.innerHTML+=`<div class="card-block">
       <div class="card-block-header" onclick="toggleCardBlock(this)">
@@ -1520,13 +1576,16 @@ function renderCards(){
           <span class="ch-title">${cardName}</span>
           <span class="badge" style="background:${col}20;color:${col}">${items.length} item${items.length!==1?"s":""}</span>
         </div>
-        <div style="display:flex;align-items:center;gap:10px">
+        <div style="display:flex;align-items:center;gap:6px">
           <span class="ch-total" style="color:${col}">${total>0?fmt(total):"—"}</span>
+          <button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:11px;border:1px solid var(--border2)"
+            onclick="event.stopPropagation();openCardPdf('${cardName.replace(/\\/g,"\\\\").replace(/'/g,"\\'")}')"
+            title="Importar extrato PDF">📄 PDF</button>
           <span class="ch-arrow">▾</span>
         </div>
       </div>
-      <div class="card-block-body" id="cb-${cardName.replace(/\s/g,"_")}">
-        ${items.length===0?`<div style="text-align:center;padding:16px;color:var(--muted);font-size:12px">Nenhum item.</div>`:
+      <div class="card-block-body" id="cb-${safeId}">
+        ${items.length===0?`<div style="text-align:center;padding:16px;color:var(--muted);font-size:12px">Nenhum item. Adicione manualmente ou importe um PDF.</div>`:
           `<div style="padding-top:8px">
             ${items.map(item=>`
               <div class="card-item-row">
@@ -1543,9 +1602,7 @@ function renderCards(){
                 </div>
               </div>`).join("")}
           </div>
-          <div style="padding-top:10px;border-top:1px solid var(--border);text-align:right;font-size:13px;font-weight:700;color:${col};font-family:'DM Mono',monospace">
-            Total: ${fmt(total)}
-          </div>`}
+          ${dashboard}`}
       </div>
     </div>`;
   });
@@ -1891,6 +1948,67 @@ async function confirmImport(){
 }
 
 function cancelImport(){previewData=[];document.getElementById("pdf-preview").style.display="none";}
+
+// ══════════════════════════════════════════════════════════
+// CARD PDF IMPORT
+// ══════════════════════════════════════════════════════════
+let cardPdfTarget="";
+let cardPdfData=[];
+
+function openCardPdf(cardName){
+  cardPdfTarget=cardName;
+  cardPdfData=[];
+  document.getElementById("card-pdf-modal-name").textContent=cardName;
+  document.getElementById("card-pdf-preview").style.display="none";
+  document.getElementById("card-pdf-drop-area").style.display="block";
+  document.getElementById("card-pdf-input").value="";
+  openModal("card-pdf-modal");
+}
+
+function dragOver2(e){e.preventDefault();e.currentTarget.classList.add("drag");}
+function dragLeave2(){document.querySelectorAll(".drop-zone").forEach(z=>z.classList.remove("drag"));}
+function dropCardFile(e){e.preventDefault();dragLeave2();handleCardPdfFile(e.dataTransfer.files[0]);}
+
+async function handleCardPdfFile(file){
+  if(!file?.name.endsWith(".pdf")){toast("Apenas PDF","#ef4444");return;}
+  toast("⏳ Lendo PDF...","#3b82f6");
+  const fd=new FormData(); fd.append("file",file);
+  const r=await fetch(`/api/import-pdf-card/${currentMesKey}?card=${encodeURIComponent(cardPdfTarget)}`,{method:"POST",body:fd});
+  const data=await r.json();
+  if(data.error){toast("❌ "+data.error,"#ef4444");return;}
+  cardPdfData=data.transactions;
+  document.getElementById("card-pdf-count").textContent=data.count;
+  document.getElementById("card-pdf-sai").textContent=data.count+" saídas";
+  document.getElementById("card-pdf-body").innerHTML=data.transactions.map(t=>`
+    <tr>
+      <td style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">${t.date}</td>
+      <td style="font-size:11px">${t.description}</td>
+      <td><span class="badge" style="background:${(CAT_COLORS[t.category]??"#94a3b8")}20;color:${(CAT_COLORS[t.category]??"#94a3b8")};font-size:10px">${t.category}</span></td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:#f87171">${fmt(t.amount)}</td>
+    </tr>`).join("");
+  document.getElementById("card-pdf-drop-area").style.display="none";
+  document.getElementById("card-pdf-preview").style.display="block";
+}
+
+async function confirmCardImport(){
+  const r=await fetch(`/api/import-confirm-card/${currentMesKey}`,{method:"POST",
+    headers:{"Content-Type":"application/json"},body:JSON.stringify({card:cardPdfTarget,transactions:cardPdfData})});
+  const d=await r.json();
+  if(!d.ok){toast("Erro ao importar","#ef4444");return;}
+  toast(`✅ ${d.inserted} transações importadas para ${cardPdfTarget}!`);
+  cardPdfData=[];
+  closeModal("card-pdf-modal");
+  const res=await fetch(`/api/cards/${currentMesKey}`);
+  cardItems=await res.json();
+  renderCards();
+}
+
+function cancelCardImport(){
+  cardPdfData=[];
+  document.getElementById("card-pdf-preview").style.display="none";
+  document.getElementById("card-pdf-drop-area").style.display="block";
+  document.getElementById("card-pdf-input").value="";
+}
 
 // ══════════════════════════════════════════════════════════
 // ECONOMIA

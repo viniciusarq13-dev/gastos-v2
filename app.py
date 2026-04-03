@@ -154,8 +154,8 @@ def build_budget(salario, mes_key, db_conn=None):
         if not db_conn:
             con.close()
         for r in rows:
-            if r[0]:
-                b["🎲 Despesas Diversas"].append({"name": r[0], "valor": 0.0})
+            if r["budget_item"]:
+                b["🎲 Despesas Diversas"].append({"name": r["budget_item"], "valor": 0.0})
     except Exception:
         pass
 
@@ -509,7 +509,7 @@ def api_summary(mes_key):
     receita    = salario + dinheiro_extra
     return jsonify({
         "mes_key":mes_key,"salario":salario,"simples":simples,
-        "total_previsto":total_prev,"saldo_previsto":salario-total_prev,
+        "total_previsto":total_prev,"saldo_previsto":receita-total_prev,
         "total_saidas":total_saidas,"total_entradas":total_entradas,
         "dinheiro_extra":dinheiro_extra,"receita_total":receita,
         "saldo_real":receita-total_saidas,"by_category":by_cat,
@@ -732,6 +732,34 @@ def api_import_confirm(mes_key):
             (mes_key,t["description"],t["amount"],t["date"],t["category"],t.get("budget_item",""),t["type"],"pdf"))
     con.commit(); con.close()
     return jsonify({"ok":True,"inserted":len(data)})
+
+@app.route("/api/import-pdf-card/<mes_key>", methods=["POST"])
+def api_import_pdf_card(mes_key):
+    card_name = request.args.get("card","")
+    if not card_name: return jsonify({"error":"Informe o cartão"}),400
+    if "file" not in request.files: return jsonify({"error":"Nenhum arquivo"}),400
+    f = request.files["file"]
+    if not f.filename.endswith(".pdf"): return jsonify({"error":"Apenas PDF"}),400
+    tmp = os.path.join(_DATA_DIR,"tmp_card.pdf"); f.save(tmp)
+    try:    txs = parse_mp_pdf(tmp)
+    except Exception as e: return jsonify({"error":str(e)}),500
+    finally: os.path.exists(tmp) and os.remove(tmp)
+    # For card imports keep only saidas (expenses)
+    txs = [t for t in txs if t["type"]=="saida"]
+    if not txs: return jsonify({"error":"Nenhuma transação encontrada"}),400
+    return jsonify({"transactions":txs,"count":len(txs),"card":card_name})
+
+@app.route("/api/import-confirm-card/<mes_key>", methods=["POST"])
+def api_import_confirm_card(mes_key):
+    data = request.json; card_name = data.get("card",""); txs = data.get("transactions",[])
+    if not card_name: return jsonify({"error":"Informe o cartão"}),400
+    con = get_db()
+    for t in txs:
+        con.execute(
+            "INSERT INTO card_items (mes_key,card_name,description,amount,date,category) VALUES (?,?,?,?,?,?)",
+            (mes_key,card_name,t["description"],float(t["amount"]),t.get("date",""),t.get("category","Outros")))
+    con.commit(); con.close()
+    return jsonify({"ok":True,"inserted":len(txs)})
 
 
 # ── BACKUP / RESTORE ─────────────────────────────────────────────
